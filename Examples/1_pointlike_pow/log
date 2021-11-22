@@ -1,0 +1,99 @@
+#== INIT
+mkdir evt
+mkdir images
+mkdir input
+mkdir simput
+mkdir spectra
+
+#run the softwares
+ciao
+sixte
+
+xmldir=$SIXTE/share/sixte/instruments/athena-wfi/wfi_w_filter_15row
+xml0=${xmldir}/ld_wfi_ff_chip0.xml
+xml1=${xmldir}/ld_wfi_ff_chip1.xml
+xml2=${xmldir}/ld_wfi_ff_chip2.xml
+xml3=${xmldir}/ld_wfi_ff_chip3.xml
+
+#prepare attitude with python script and place it in input
+#prepare xcm model with xspec
+xspec
+model pow
+1
+3
+save model ./input/model.xcm
+
+#=== CVAL1 CVAL2
+RA=178.95265707698
+DEC=23.430564570053
+
+#==== SIMPUTFILE
+punlearn simputfile
+pset simputfile Elow=0.2
+pset simputfile Eup=12
+pset simputfile Nbins=1000
+pset simputfile XSPECFile=./input/model.xcm
+pset simputfile RA=${RA}
+pset simputfile Dec=${DEC}
+pset simputfile srcFlux=1.e-12
+pset simputfile Emin=0.7
+pset simputfile Emax=2.5
+pset simputfile clobber=yes
+simputfile
+
+#=== SIMULATION
+punlearn athenawfisim
+pset athenawfisim XMLFile0=${xml0}
+pset athenawfisim XMLFile1=${xml1}
+pset athenawfisim XMLFile2=${xml2}
+pset athenawfisim XMLFile3=${xml3}
+pset athenawfisim RA=${RA}
+pset athenawfisim Dec=${DEC}
+pset athenawfisim Prefix=./evt/pnt_source_
+pset athenawfisim Exposure=10000
+pset athenawfisim clobber=yes
+pset athenawfisim Attitude=./input/attitude_80ksec.att
+pset athenawfisim Simput=./simput/simput.fits
+athenawfisim
+
+#== IMAGING
+ftmerge \
+./evt/pnt_source_chip0_evt.fits,./evt/pnt_source_chip1_evt.fits,./evt/pnt_source_chip2_evt.fits,./evt/pnt_source_chip3_evt.fits \
+./evt/pnt_source_comb.fits clobber=yes
+
+punlearn imgev
+pset imgev EvtFile=./evt/pnt_source_comb.fits
+pset imgev Image=./images/image.fits
+pset imgev NAXIS1=1078
+pset imgev NAXIS2=1078
+pset imgev CRVAL1=${RA}
+pset imgev CRVAL2=${DEC}
+pset imgev CRPIX1=593.192308
+pset imgev CRPIX2=485.807692
+pset imgev CUNIT1=deg
+pset imgev CUNIT2=deg
+pset imgev CDELT1=6.207043e-04
+pset imgev CDELT2=6.207043e-04
+pset imgev CoordinateSystem=0
+pset imgev Projection=TAN
+pset imgev clobber=yes
+imgev
+
+#== SPECTRA
+punlearn makespec
+pset makespec EvtFile=./evt/pnt_source_comb.fits
+pset makespec Spectrum=./spectra/spectra.pha
+pset makespec RSPPath=${xmldir}
+pset makespec clobber=yes
+pset makespec EventFilter="{RA - 178.953}**2 + {DEC - 23.43}**2 > 0 && {RA - 178.9527861}**2 + {DEC - 23.43}**2 < 0.005**2"
+makespec
+
+#== in xspec
+data ./spectra/spectra.pha
+ignore 0.-0.2 7.-**
+ignore bad
+cpd /xs
+setp energy
+@./input/model.xcm
+fit 2000
+plot d del
