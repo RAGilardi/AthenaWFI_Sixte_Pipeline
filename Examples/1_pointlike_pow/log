@@ -24,8 +24,8 @@ model pow
 save model ./input/model.xcm
 
 #=== CVAL1 CVAL2
-RA=178.95265707698
-DEC=23.430564570053
+RA=178.95
+DEC=23.43
 
 #==== SIMPUTFILE
 punlearn simputfile
