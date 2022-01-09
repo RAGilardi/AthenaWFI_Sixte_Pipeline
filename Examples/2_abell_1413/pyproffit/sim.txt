@@ -1,0 +1,13 @@
+#XSPEC version: 12.11.1
+#Build Date/Time: Tue Aug 11 22:48:28 2020
+#
+!XSPEC12> show rates
+#
+#Spectral Data File: athena_wfi_sixte_v20150504.fak
+# Assigned to Data Group 1 and Plot Group 1
+#Net count rate (cts/s) for Spectrum:1  2.474e+03 +/- 4.974e-01
+# Spectral data counts: 2.47424e+07
+# Model predicted rate: 2474.05
+#
+!XSPEC12> log none
+#

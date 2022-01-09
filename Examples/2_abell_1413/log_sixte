@@ -1,0 +1,379 @@
+PIPELINE From Chandra Reduced Data (a merge of two observations of Abell 1413) #################################
+#PREPARATION#########################################
+#From the data directory
+mkdir evt
+mkdir images
+mkdir simput
+mkdir input
+mkdir wavdetect
+mkdir profiles
+mkdir spectra
+mkdir pyproffit
+mkdir cxo
+mkdir arfs
+
+#In input are located:
+#-chandra count map ima_0.700000-2.50000bin4_units_default_flux.img
+#-chandra temperature map kt_cxo_map.fits
+#-xml models for the cluster (cluster_model.xcm), backgound (bkg_model.xcm) and spectral fit (total_model.xcm). They depend on z and nh of the source!
+#-sky and particle background counts and parameter maps (fake_part_bkg.fits, fake_sky_bkg.fits and *_norm*.fits) made with the python scripts in the script directory
+#-the attitude for the source made with the python script in the script directory
+#-wfi rmf (for the spectra.xcm script). So to not have to indicate the instrument directory on each use
+
+#The pointlike source simput is in the simput directory. It was made with the python code in the script directory, which derived a sample of sourcers from the CDFS catalogue
+
+#the cxo directory contains fits file with the information on the chandra analysis of the source which I used in my python analysis of athena data, which is the Analysis.ipynb file in the directory. If you don't have all the python libraries needed to run its code, you can still read it online on the github
+
+#The flux was calculated using pimms heasrc
+#The count rate for pimms was derived from the imput image within chandra output energy band with maximum effective area. 
+#In particular I used ds9 statystics function of a region covering the source and on a region of the same shape and size without the source and calculated the rate dividing the source cumulative countrate in the area, subtracting the background cumulative background and divided it by the exposure time of the observation
+
+ds9 evt2_gnfvws.fits"[energy=700:2500]"
+#results:
+#cts_src=2.56504E-02
+#cts_bkg=1.45086E-06
+
+#CUT INPUT MAPS ######################################
+#As explained in the pipeline, it's better to cut the input maps around the source. The region file for the source area is in the input directory
+
+dmcopy input/ima_0.700000-2.50000bin4_units_default_flux.img"[sky=region(input/cut.reg)]" input/ima_cut.fits clobber=yes
+
+dmcopy input/kt_cxo_map.fits"[sky=region(input/cut.reg)]" input/kt_cut.fits clobber=yes
+
+#in idl use no_zero.pro to remove any zero values from around the cut (they give issues in the simulation otherwise)
+no_zero,in_map="./input/kt_cut.fits",out_map="./input/kt_nozero.fits",min_value=0.5
+
+#INIT###############################################################
+ciao
+sixte
+
+#Instrument file location
+xmldir=$SIXTE/share/sixte/instruments/athena-wfi/wfi_w_filter_15row
+xml0=${xmldir}/ld_wfi_ff_chip0.xml
+xml1=${xmldir}/ld_wfi_ff_chip1.xml
+xml2=${xmldir}/ld_wfi_ff_chip2.xml
+xml3=${xmldir}/ld_wfi_ff_chip3.xml
+
+#CVAL1 CVAL2 from input_file header (ds9->show header)
+RA=178.86502756980   
+DEC=23.464330002883
+
+#SIMPUTFILES#########################################################
+#source simput
+pset simputmultispec Simput=./simput/cluster.simput
+pset simputmultispec XSPECFile=./input/cluster_model.xcm
+pset simputmultispec ImageFile="./input/ima_cut.fits"
+pset simputmultispec ParamFiles="./input/kt_nozero.fits"
+pset simputmultispec ParamNames="2"
+pset simputmultispec ParamsLogScale="yes"
+pset simputmultispec ParamsNumValues="32"
+pset simputmultispec Emin = 0.7
+pset simputmultispec Emax = 2.5
+pset simputmultispec srcFlux = 9.89414E-12
+pset simputmultispec RA=${RA}
+pset simputmultispec Dec=${DEC}
+pset simputmultispec Elow=0.1
+pset simputmultispec Eup=12
+pset simputmultispec Estep=0.0025
+pset simputmultispec clobber=yes
+simputmultispec
+
+#bkg_sky simput
+pset simputmultispec Simput=./simput/bkg_sky.simput
+pset simputmultispec XSPECFile=./input/bkg_model.xcm
+pset simputmultispec ImageFile="./input/fake_sky_bkg.fits"
+pset simputmultispec ParamFiles="./input/sky_norm1.fits;./input/sky_norm2.fits;./input/sky_norm3.fits"
+pset simputmultispec ParamNames="5;10;12"
+pset simputmultispec ParamsLogScale="no;no;no"
+pset simputmultispec ParamsNumValues="32;32;32"
+pset simputmultispec Emin = 0.7
+pset simputmultispec Emax = 2.5
+pset simputmultispec srcFlux = 1.4956E-13
+pset simputmultispec RA=${RA}
+pset simputmultispec Dec=${DEC}
+pset simputmultispec Elow=0.1
+pset simputmultispec Eup=12
+pset simputmultispec Estep=0.0025
+pset simputmultispec clobber=yes
+simputmultispec
+
+#bkg_part simput
+pset simputmultispec Simput=./simput/bkg_part.simput
+pset simputmultispec XSPECFile=./input/bkg_model.xcm
+pset simputmultispec ImageFile="./input/fake_part_bkg.fits"
+pset simputmultispec ParamFiles="./input/part_norm1.fits;./input/part_norm2.fits;./input/part_norm3.fits"
+pset simputmultispec ParamNames="5;10;12"
+pset simputmultispec ParamsLogScale="no;no;no"
+pset simputmultispec ParamsNumValues="32;32;32"
+pset simputmultispec Emin = 0.7
+pset simputmultispec Emax = 2.5
+pset simputmultispec srcFlux = 1.4956E-13
+pset simputmultispec RA=${RA}
+pset simputmultispec Dec=${DEC}
+pset simputmultispec Elow=0.1
+pset simputmultispec Eup=12
+pset simputmultispec Estep=0.0025
+pset simputmultispec clobber=yes
+simputmultispec
+
+#IMMAGINI#############################################################
+#Complete image (python analysis complete image)
+punlearn athenawfisim
+pset athenawfisim XMLFile0=${xml0}
+pset athenawfisim XMLFile1=${xml1}
+pset athenawfisim XMLFile2=${xml2}
+pset athenawfisim XMLFile3=${xml3}
+pset athenawfisim RA=${RA}
+pset athenawfisim Dec=${DEC}
+pset athenawfisim Prefix=./evt/image_
+pset athenawfisim Exposure=20000
+pset athenawfisim clobber=yes
+pset athenawfisim Attitude=./input/attitude_80ksec.att
+pset athenawfisim Simput=./simput/cluster.simput
+pset athenawfisim Simput2=./simput/bkg_sky.simput
+pset athenawfisim Simput3=./simput/srcs_cat.simput
+athenawfisim
+
+ftmerge \
+./evt/image_chip0_evt.fits,./evt/image_chip2_evt.fits,./evt/image_chip1_evt.fits,./evt/image_chip3_evt.fits \
+./evt/image_combined_evt.fits clobber=yes
+
+punlearn imgev
+pset imgev EvtFile=./evt/image_combined_evt.fits"[SIGNAL=0.7:2.5]"
+pset imgev Image=./images/image.fits
+pset imgev NAXIS1=1078
+pset imgev NAXIS2=1078
+pset imgev CRVAL1=${RA}
+pset imgev CRVAL2=${DEC}
+pset imgev CRPIX1=593.192308
+pset imgev CRPIX2=485.807692
+pset imgev CUNIT1=deg
+pset imgev CUNIT2=deg
+pset imgev CDELT1=6.207043e-04
+pset imgev CDELT2=6.207043e-04
+pset imgev CoordinateSystem=0
+pset imgev Projection=TAN
+imgev
+
+#Particle background (python analysis background)
+punlearn athenawfisim
+pset athenawfisim XMLFile0=${xml0}
+pset athenawfisim XMLFile1=${xml1}
+pset athenawfisim XMLFile2=${xml2}
+pset athenawfisim XMLFile3=${xml3}
+pset athenawfisim RA=${RA}
+pset athenawfisim Dec=${DEC}
+pset athenawfisim Prefix=./evt/bkg_
+pset athenawfisim Exposure=20000
+pset athenawfisim clobber=yes
+pset athenawfisim Attitude=./input/attitude_80ksec.att
+pset athenawfisim Simput=./simput/bkg_part.simput
+athenawfisim
+
+ftmerge \
+./evt/bkg_chip0_evt.fits,./evt/bkg_chip2_evt.fits,./evt/bkg_chip1_evt.fits,./evt/bkg_chip3_evt.fits \
+./evt/bkg_combined_evt.fits clobber=yes
+
+punlearn imgev
+pset imgev EvtFile=./evt/bkg_combined_evt.fits"[SIGNAL=0.7:2.5]"
+pset imgev NAXIS1=1078
+pset imgev NAXIS2=1078
+pset imgev CRVAL1=${RA}
+pset imgev CRVAL2=${DEC}
+pset imgev CRPIX1=593.192308
+pset imgev CRPIX2=485.807692
+pset imgev CUNIT1=deg
+pset imgev CUNIT2=deg
+pset imgev CDELT1=6.207043e-04
+pset imgev CDELT2=6.207043e-04
+pset imgev CoordinateSystem=0
+pset imgev Projection=TAN
+pset imgev Image=./images/bkg.fits
+imgev
+
+#Particle background (for spectra)
+punlearn athenawfisim
+pset athenawfisim XMLFile0=${xml0}
+pset athenawfisim XMLFile1=${xml1}
+pset athenawfisim XMLFile2=${xml2}
+pset athenawfisim XMLFile3=${xml3}
+pset athenawfisim RA=${RA}
+pset athenawfisim Dec=${DEC}
+pset athenawfisim Prefix=./evt/bkg_spectra_
+pset athenawfisim Exposure=40000
+pset athenawfisim clobber=yes
+pset athenawfisim Attitude=./input/attitude_80ksec.att
+pset athenawfisim Simput=./simput/bkg_part.simput
+athenawfisim
+
+ftmerge \
+./evt/bkg_spectra_chip0_evt.fits,./evt/bkg_spectra_chip2_evt.fits,./evt/bkg_spectra_chip1_evt.fits,./evt/bkg_spectra_chip3_evt.fits \
+./evt/bkg_spectra_combined_evt.fits clobber=yes
+
+#exposure map
+exposure_map \
+Vignetting=${xmldir}/athena_vig_15row_20171016.fits \
+Attitude=./input/attitude_80ksec.att \
+Exposuremap=./images/expo_map.fits \
+XMLFile="${xml0};${xml1};${xml2};${xml3}" \
+fov_diameter=70 \
+CoordinateSystem=0 projection_type=TAN \
+NAXIS1=1078 NAXIS2=1078 \
+CUNIT1=deg CUNIT2=deg \
+CRVAL1=${RA} CRVAL2=${DEC} \
+CRPIX1=593.192308 CRPIX2=485.807692 \
+CDELT1=6.207043e-04 CDELT2=6.207043e-04 \
+TSTART=0 timespan=20000.0 dt=100. \
+chatter=3 clobber=true
+
+#Region files
+punlearn wavdetect
+pset wavdetect infile=./images/image.fits
+pset wavdetect outfile=./wavdetect/out_ima.fits
+pset wavdetect scellfile=./wavdetect/cell_ima.fits
+pset wavdetect imagefile=./wavdetect/ima_ima.fits
+pset wavdetect defnbkgfile=./wavdetect/bkg_ima.fits
+pset wavdetect regfile=./wavdetect/reg.reg
+pset wavdetect clobber=yes
+wavdetect
+
+#For my python a ds9/fk5/deg file format is required
+
+#PYTHON##########################################################
+#Extracting Sx profile before spectra
+#Then use it for Rho, T ed M profiles in python
+
+#Source parameters
+- z = 0.14360
+- kt = 7.
+- nh = 0.0181
+- elow = 0.1 ehigh = 12. 
+
+#SPETTRI######################################################
+#Concentric annuli radii
+export R0=0.
+export R1=$(awk "BEGIN {print .25/60}")
+export R2=$(awk "BEGIN {print .75/60}")
+export R3=$(awk "BEGIN {print 1.5/60}")
+export R4=$(awk "BEGIN {print 2.5/60}")
+export R5=$(awk "BEGIN {print 4./60}")
+export R6=$(awk "BEGIN {print 6./60}")
+
+#Background region annulus
+export RB0=$(awk "BEGIN {print 15./60}")
+export RB1=$(awk "BEGIN {print 20./60}")
+
+#Source coordinates
+#From image, database or using python to locate the maximum flux point location
+RAS=178.825
+DECS=23.405
+
+#Bkg_sky spectra
+punlearn makespec
+pset makespec EvtFile=./evt/image_combined_evt.fits
+pset makespec Spectrum=./spectra/spectra_bkgsky.pha
+pset makespec RSPPath=${xmldir}
+pset makespec clobber=yes
+pset makespec EventFilter="{RA - ${RAS}}**2 + {DEC - ${DECS}}**2 > ${RB0}**2 && {RA - ${RAS}}**2 + {DEC - ${DECS}}**2 < ${RB1}**2"
+makespec
+
+ftgrouppha infile=./spectra/spectra_bkgsky.pha outfile=./spectra/spectra_bkgsky_rebin.pha grouptype=opt respfile=../athena_wfi_sixte_v20150504.rmf 
+
+punlearn makespec
+pset makespec EvtFile=./evt/bkg_spectra_combined_evt.fits
+pset makespec Spectrum=./spectra/spectra_bkgsky_part.pha
+pset makespec RSPPath=${xmldir}
+pset makespec clobber=yes
+pset makespec EventFilter="{RA - ${RAS}}**2 + {DEC - ${DECS}}**2 > ${RB0}**2 && {RA - ${RAS}}**2 + {DEC - ${DECS}}**2 < ${RB1}**2"
+makespec
+
+ftgrouppha infile=./spectra/spectra_bkgsky_part.pha outfile=./spectra/spectra_bkgsky_part_rebin.pha grouptype=opt respfile=../athena_wfi_sixte_v20150504.rmf 
+
+#cluster spectra
+punlearn makespec
+pset makespec EvtFile=./evt/image_combined_evt.fits
+pset makespec Spectrum=./spectra/spectra_0.pha
+pset makespec RSPPath=${xmldir}
+pset makespec clobber=yes
+pset makespec EventFilter="{RA - ${RAS}}**2 + {DEC - ${DECS}}**2 > ${R0}**2 && {RA - ${RAS}}**2 + {DEC - ${DECS}}**2 < ${R1}**2"
+makespec
+
+ftgrouppha infile=./spectra/spectra_0.pha outfile=./spectra/spectra_0_rebin.pha grouptype=opt respfile=../athena_wfi_sixte_v20150504.rmf 
+
+pset makespec Spectrum=./spectra/spectra_1.pha
+pset makespec EventFilter="{RA - ${RAS}}**2 + {DEC - ${DECS}}**2 > ${R1}**2 && {RA - ${RAS}}**2 + {DEC - ${DECS}}**2 < ${R2}**2"
+makespec
+
+ftgrouppha infile=./spectra/spectra_1.pha outfile=./spectra/spectra_1_rebin.pha grouptype=opt respfile=../athena_wfi_sixte_v20150504.rmf 
+
+pset makespec Spectrum=./spectra/spectra_2.pha
+pset makespec EventFilter="{RA - ${RAS}}**2 + {DEC - ${DECS}}**2 > ${R2}**2 && {RA - ${RAS}}**2 + {DEC - ${DECS}}**2 < ${R3}**2"
+makespec
+
+ftgrouppha infile=./spectra/spectra_2.pha outfile=./spectra/spectra_2_rebin.pha grouptype=opt respfile=../athena_wfi_sixte_v20150504.rmf 
+
+pset makespec Spectrum=./spectra/spectra_3.pha
+pset makespec EventFilter="{RA - ${RAS}}**2 + {DEC - ${DECS}}**2 > ${R3}**2 && {RA - ${RAS}}**2 + {DEC - ${DECS}}**2 < ${R4}**2"
+makespec
+
+ftgrouppha infile=./spectra/spectra_3.pha outfile=./spectra/spectra_3_rebin.pha grouptype=opt respfile=../athena_wfi_sixte_v20150504.rmf 
+
+pset makespec Spectrum=./spectra/spectra_4.pha
+pset makespec EventFilter="{RA - ${RAS}}**2 + {DEC - ${DECS}}**2 > ${R4}**2 && {RA - ${RAS}}**2 + {DEC - ${DECS}}**2 < ${R5}**2"
+makespec
+
+ftgrouppha infile=./spectra/spectra_4.pha outfile=./spectra/spectra_4_rebin.pha grouptype=opt respfile=../athena_wfi_sixte_v20150504.rmf 
+
+pset makespec Spectrum=./spectra/spectra_5.pha
+pset makespec EventFilter="{RA - ${RAS}}**2 + {DEC - ${DECS}}**2 > ${R5}**2 && {RA - ${RAS}}**2 + {DEC - ${DECS}}**2 < ${R6}**2"
+makespec
+
+ftgrouppha infile=./spectra/spectra_5.pha outfile=./spectra/spectra_5_rebin.pha grouptype=opt respfile=../athena_wfi_sixte_v20150504.rmf 
+
+#particle bkg spectra
+punlearn makespec
+pset makespec EvtFile=./evt/bkg_spectra_combined_evt.fits
+pset makespec Spectrum=./spectra/spectra_bkg_0.pha
+pset makespec RSPPath=${xmldir}
+pset makespec clobber=yes
+pset makespec EventFilter="{RA - ${RAS}}**2 + {DEC - ${DECS}}**2 > ${R0}**2 && {RA - ${RAS}}**2 + {DEC - ${DECS}}**2 < ${R1}**2"
+makespec
+
+ftgrouppha infile=./spectra/spectra_bkg_0.pha outfile=./spectra/spectra__bkg_0_rebin.pha grouptype=opt respfile=../athena_wfi_sixte_v20150504.rmf 
+
+pset makespec Spectrum=./spectra/spectra_bkg_1.pha
+pset makespec EventFilter="{RA - ${RAS}}**2 + {DEC - ${DECS}}**2 > ${R1}**2 && {RA - ${RAS}}**2 + {DEC - ${DECS}}**2 < ${R2}**2"
+makespec
+
+ftgrouppha infile=./spectra/spectra_bkg_1.pha outfile=./spectra/spectra__bkg_1_rebin.pha grouptype=opt respfile=../athena_wfi_sixte_v20150504.rmf 
+
+pset makespec Spectrum=./spectra/spectra_bkg_2.pha
+pset makespec EventFilter="{RA - ${RAS}}**2 + {DEC - ${DECS}}**2 > ${R2}**2 && {RA - ${RAS}}**2 + {DEC - ${DECS}}**2 < ${R3}**2"
+makespec
+
+ftgrouppha infile=./spectra/spectra_bkg_2.pha outfile=./spectra/spectra__bkg_2_rebin.pha grouptype=opt respfile=../athena_wfi_sixte_v20150504.rmf 
+
+pset makespec Spectrum=./spectra/spectra_bkg_3.pha
+pset makespec EventFilter="{RA - ${RAS}}**2 + {DEC - ${DECS}}**2 > ${R3}**2 && {RA - ${RAS}}**2 + {DEC - ${DECS}}**2 < ${R4}**2"
+makespec
+
+ftgrouppha infile=./spectra/spectra_bkg_3.pha outfile=./spectra/spectra__bkg_3_rebin.pha grouptype=opt respfile=../athena_wfi_sixte_v20150504.rmf 
+
+pset makespec Spectrum=./spectra/spectra_bkg_4.pha
+pset makespec EventFilter="{RA - ${RAS}}**2 + {DEC - ${DECS}}**2 > ${R4}**2 && {RA - ${RAS}}**2 + {DEC - ${DECS}}**2 < ${R5}**2"
+makespec
+
+ftgrouppha infile=./spectra/spectra_bkg_4.pha outfile=./spectra/spectra__bkg_4_rebin.pha grouptype=opt respfile=../athena_wfi_sixte_v20150504.rmf 
+
+pset makespec Spectrum=./spectra/spectra_bkg_5.pha
+pset makespec EventFilter="{RA - ${RAS}}**2 + {DEC - ${DECS}}**2 > ${R5}**2 && {RA - ${RAS}}**2 + {DEC - ${DECS}}**2 < ${R6}**2"
+makespec
+
+ftgrouppha infile=./spectra/spectra_bkg_5.pha outfile=./spectra/spectra__bkg_5_rebin.pha grouptype=opt respfile=../athena_wfi_sixte_v20150504.rmf 
+
+#ds9/fk5/deg region of the annuli are needed
+#bkg arf is taken from bkgsky.pha
+#Prepare arfs using sixte_arfgen
+
+#In xspec
+@../spectra.xcm "/path/to/data/2_abell_1413/"

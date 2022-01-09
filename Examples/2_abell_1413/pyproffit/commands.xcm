@@ -1,0 +1,21 @@
+cosmo 70 0 0.7
+abund angr
+model phabs(apec)
+0.0181
+7.92217
+0.3
+0.1436
+1.0
+fakeit none
+/home/riccardo/Software/SIXTE/share/sixte/instruments/athena-wfi/wfi_w_filter_15row/athena_wfi_sixte_v20150504.rmf
+/home/riccardo/Software/SIXTE/share/sixte/instruments/athena-wfi/wfi_w_filter_15row/athena_sixte_wfi_w_filter_v20190122.arf
+
+
+
+10000, 1
+ign **-0.70
+ign 2.50-**
+log sim.txt
+show rates
+log none
+quit

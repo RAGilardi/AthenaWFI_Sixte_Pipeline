@@ -1,0 +1,95 @@
+#Launch in xspec with the data directory as an input
+#Fits models in temperature after subtracting bkg
+
+#Keep going until fit converges
+query yes
+
+#init and parameters
+set workdir $argv
+set outdir $argv
+set moddir $argv
+set arfdir $argv
+
+append workdir spectra
+append outdir pyproffit
+append moddir input
+append arfdir arfs
+
+#BKG################################################################################################
+#preparing bkg model
+data $workdir/spectra_bkgsky_rebin.pha
+@$moddir/total_model.xcm
+ignore 0.-0.5 10.-**
+backgrnd $workdir/spectra_bkgsky_part_rebin.pha
+
+response $moddir/athena_wfi_sixte_v20150504.rmf
+arf $arfdir/arf_bkg.fits
+
+fit 2000
+
+rm $moddir/total_model.xcm
+save model $moddir/total_model.xcm
+
+cpd $workdir/bkgsky.ps/cps
+setp energy
+plot d del
+cpd none
+
+#SOURCE SPECTRA###################################################################################
+#output file
+set fp [open "$workdir/TAbval.txt" w+]
+puts $fp "#Rin Rout T T-TerrSx T+TerrDx Ab Ab-AberrSx Ab+AberrDx"
+
+set area_bkg [expr $env(RB1)**2-$env(RB0)**2]
+
+for {set i 0} {$i < 6} {incr i} {
+
+data $workdir/spectra_${i}_rebin.pha
+@$moddir/total_model.xcm
+freeze 1-18
+newpar 18 1
+thaw 15 16 18
+
+set j [expr $i+1]
+set area [expr $env(R$j)**2-$env(R$i)**2]
+set area_ratio [expr $area/$area_bkg]
+
+newpar 1 $area_ratio
+ignore 0.-0.7 7.-**
+backgrnd $workdir/spectra_bkg_${i}_rebin.pha
+
+response $moddir/athena_wfi_sixte_v20150504.rmf
+arf $arfdir/arf_$i.fits
+
+ignore bad
+
+fit 2000
+
+tclout param 15
+set tout [lindex $xspec_tclout 0]
+
+tclout param 16
+set about [lindex $xspec_tclout 0]
+
+error maximum 200 15
+error maximum 200 16
+
+tclout error 15
+set tout1 [lindex $xspec_tclout 0]
+set tout2 [lindex $xspec_tclout 1]
+
+tclout error 16
+set about1 [lindex $xspec_tclout 0]
+set about2 [lindex $xspec_tclout 1]
+
+puts $fp [concat $env(R$i) $env(R$j) $tout $tout1 $tout2 $about $about1 $about2]
+
+cpd $workdir/spectra_$i.ps/cps
+setp energy
+plot d del
+cpd none
+}
+
+close $fp
+
+exec mv $workdir/TAbval.txt $outdir/TAbval.txt
