@@ -1,4 +1,7 @@
 PIPELINE From Chandra Reduced Data (a merge of two observations of Abell 1413) #################################
+
+#NOTE: Not all the pipeline output are in this example directory because of github project storage space
+
 #PREPARATION#########################################
 #From the data directory
 mkdir evt
